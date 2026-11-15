@@ -101,6 +101,11 @@
             font-family: Tahoma, Arial, sans-serif;
         }
 
+        .southwest-start-icon {
+            background: transparent;
+            border: none;
+        }
+
         @media(max-width: 600px) {
             .field-tools {
                 width: 155px;
@@ -133,7 +138,7 @@
 <div class="field-tools">
     <div class="field-title">ابزار میدانی سرشماری<br>حوزه ۰۰۶</div>
 
-    <button onclick="firstBlock()">اولین بلوک</button>
+    <button onclick="firstBlock()">اولین بلوک از جنوب‌غربی</button>
     <button onclick="nextBlock()">بلوک بعدی</button>
     <button onclick="zoomActive()">بزرگ‌نمایی بلوک فعال</button>
     <button onclick="resetActive()">لغو بلوک فعال</button>
@@ -196,7 +201,7 @@ var autolinker = new Autolinker({
 
 var bounds_group = new L.featureGroup([]);
 
-var zoomControl = L.control.zoom({
+L.control.zoom({
     position: 'topleft'
 }).addTo(map);
 
@@ -275,17 +280,37 @@ function addClassToPopupIfMedia(content, popup) {
 }
 
 // ========================================
+// اصلاح نمایش شماره بلوک
+// ========================================
+
+function formatBlockNumber(value) {
+    if (
+        value === null ||
+        value === undefined ||
+        String(value).trim() === ''
+    ) {
+        return 'نامشخص';
+    }
+
+    var str = String(value).trim().replace(/,/g, '');
+    var number = Number(str);
+
+    if (Number.isFinite(number)) {
+        return String(Math.trunc(number));
+    }
+
+    return str.replace(/^0+(?=\d)/, '');
+}
+
+// ========================================
 // لایه بلوک‌های حوزه 006
 // ========================================
 
 function pop_Blk2109_hoz006_1(feature, layer) {
-
     var popupContent = '<table>';
-
     var properties = feature.properties || {};
 
     Object.keys(properties).forEach(function(key) {
-
         var value = properties[key];
 
         if (
@@ -300,7 +325,6 @@ function pop_Blk2109_hoz006_1(feature, layer) {
                 autolinker.link(String(value)) +
                 '</td></tr>';
         }
-
     });
 
     popupContent += '</table>';
@@ -335,9 +359,7 @@ function style_Blk2109_hoz006_1_0() {
 }
 
 map.createPane('pane_Blk2109_hoz006_1');
-
 map.getPane('pane_Blk2109_hoz006_1').style.zIndex = 401;
-
 map.getPane('pane_Blk2109_hoz006_1').style['mix-blend-mode'] = 'normal';
 
 var layer_Blk2109_hoz006_1 = new L.geoJson(
@@ -361,13 +383,10 @@ map.addLayer(layer_Blk2109_hoz006_1);
 // ========================================
 
 function pop_hozpoint_2(feature, layer) {
-
     var popupContent = '<table>';
-
     var properties = feature.properties || {};
 
     Object.keys(properties).forEach(function(key) {
-
         var value = properties[key];
 
         if (
@@ -382,7 +401,6 @@ function pop_hozpoint_2(feature, layer) {
                 autolinker.link(String(value)) +
                 '</td></tr>';
         }
-
     });
 
     popupContent += '</table>';
@@ -408,9 +426,7 @@ function style_hozpoint_2_0() {
 }
 
 map.createPane('pane_hozpoint_2');
-
 map.getPane('pane_hozpoint_2').style.zIndex = 402;
-
 map.getPane('pane_hozpoint_2').style['mix-blend-mode'] = 'normal';
 
 var layer_hozpoint_2 = new L.geoJson(
@@ -436,13 +452,12 @@ bounds_group.addLayer(layer_hozpoint_2);
 map.addLayer(layer_hozpoint_2);
 
 // ========================================
-// نمایش برچسب بلوک‌ها و نقاط
+// برچسب بلوک‌ها و نقاط
 // ========================================
 
 var i = 0;
 
 layer_Blk2109_hoz006_1.eachLayer(function(layer) {
-
     var blockValue =
         layer.feature.properties['BLK_NO1405'];
 
@@ -476,11 +491,9 @@ layer_Blk2109_hoz006_1.eachLayer(function(layer) {
 var j = 0;
 
 layer_hozpoint_2.eachLayer(function(layer) {
-
     var name = layer.feature.properties['name'];
 
     if (name !== null && name !== undefined) {
-
         layer.bindTooltip(
             '<div style="color:#000;font-size:15pt;font-weight:bold">' +
             String(name) +
@@ -510,7 +523,6 @@ layer_hozpoint_2.eachLayer(function(layer) {
 });
 
 if (typeof resetLabels === 'function') {
-
     resetLabels([
         layer_Blk2109_hoz006_1,
         layer_hozpoint_2
@@ -539,7 +551,7 @@ if (typeof resetLabels === 'function') {
 }
 
 // ========================================
-// ابزار انتخاب و مدیریت بلوک
+// ابزار انتخاب و پیمایش بلوک‌ها
 // ========================================
 
 var fieldBlocks = [];
@@ -547,52 +559,42 @@ var activeIndex = -1;
 var activeLayer = null;
 var startMarker = null;
 
-function formatBlockNumber(value) {
-
-    if (value === null || value === undefined) {
-        return '';
-    }
-
-    var str = String(value).trim().replace(/,/g, '');
-
-    var number = Number(str);
-
-    if (Number.isFinite(number)) {
-        return String(Math.trunc(number));
-    }
-
-    return str;
-}
-
-function numericBlockValue(value) {
-
-    var number = Number(
-        String(value).trim().replace(/,/g, '')
-    );
-
-    return Number.isFinite(number) ? number : 0;
-}
+// فاصله تشخیص ردیف‌های تقریباً هم‌عرض
+var ROW_TOLERANCE = 0.00015;
 
 // ساخت فهرست بلوک‌ها
 layer_Blk2109_hoz006_1.eachLayer(function(layer) {
-
-    var value = layer.feature.properties['BLK_NO1405'];
+    var properties = layer.feature.properties || {};
+    var value = properties['BLK_NO1405'];
+    var bounds = layer.getBounds();
+    var center = bounds.getCenter();
+    var southwest = bounds.getSouthWest();
 
     fieldBlocks.push({
         layer: layer,
-        number: numericBlockValue(value),
-        label: formatBlockNumber(value)
+        number: value,
+        label: formatBlockNumber(value),
+        lat: center.lat,
+        lng: center.lng,
+        south: southwest.lat,
+        west: southwest.lng
     });
-
 });
 
-// مرتب‌سازی عددی بلوک‌ها
+// مرتب‌سازی از جنوب به شمال و در هر ردیف از غرب به شرق
 fieldBlocks.sort(function(a, b) {
-    return a.number - b.number;
+    if (Math.abs(a.lat - b.lat) > ROW_TOLERANCE) {
+        return a.lat - b.lat;
+    }
+
+    return a.lng - b.lng;
 });
+
+// ========================================
+// وضعیت پنل
+// ========================================
 
 function fieldStatus(message) {
-
     var element = document.getElementById('fieldStatus');
 
     if (element) {
@@ -600,8 +602,11 @@ function fieldStatus(message) {
     }
 }
 
-function clearStartMarker() {
+// ========================================
+// نشانگر شروع جنوب‌غربی
+// ========================================
 
+function clearStartMarker() {
     if (startMarker) {
         map.removeLayer(startMarker);
         startMarker = null;
@@ -609,7 +614,6 @@ function clearStartMarker() {
 }
 
 function restoreActiveStyle() {
-
     if (activeLayer) {
         layer_Blk2109_hoz006_1.resetStyle(activeLayer);
     }
@@ -619,20 +623,19 @@ function restoreActiveStyle() {
 }
 
 function activateBlock(index) {
-
     if (!fieldBlocks.length) {
         fieldStatus('بلوک قابل استفاده پیدا نشد');
         return;
     }
 
     if (index < 0 || index >= fieldBlocks.length) {
+        fieldStatus('به انتهای فهرست بلوک‌ها رسیده‌اید');
         return;
     }
 
     restoreActiveStyle();
 
     activeIndex = index;
-
     activeLayer = fieldBlocks[index].layer;
 
     activeLayer.setStyle({
@@ -643,34 +646,50 @@ function activateBlock(index) {
         fillOpacity: 0.35
     });
 
+    if (activeLayer.bringToFront) {
+        activeLayer.bringToFront();
+    }
+
     var bounds = activeLayer.getBounds();
 
     map.fitBounds(bounds, {
-        padding: [35, 35]
+        padding: [35, 35],
+        maxZoom: 20
     });
 
-    // نقطه تقریبی شروع در جنوب غربی بلوک
+    // نقطه شروع تقریبی در گوشه جنوب‌غربی
     var southwest = bounds.getSouthWest();
 
-    startMarker = L.circleMarker(southwest, {
-        radius: 7,
-        color: '#006400',
-        weight: 2,
-        fillColor: '#00cc44',
-        fillOpacity: 1
+    startMarker = L.marker(southwest, {
+        title: 'نقطه شروع جنوب‌غربی',
+        zIndexOffset: 1000,
+        icon: L.divIcon({
+            className: 'southwest-start-icon',
+            html:
+                '<div style="' +
+                'width:18px;height:18px;' +
+                'background:#00cc44;' +
+                'border:3px solid white;' +
+                'border-radius:50%;' +
+                'box-shadow:0 0 5px #000;' +
+                '"></div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        })
     }).addTo(map);
 
     startMarker.bindPopup(
-        'نقطه تقریبی شروع بلوک ' +
+        'نقطه شروع جنوب‌غربی بلوک ' +
         fieldBlocks[index].label +
-        '<br>این نقطه لزوماً ورودی واقعی بلوک نیست.'
+        '<br>این نقطه تقریبی است و لزوماً ورودی واقعی بلوک نیست.'
     );
 
     fieldStatus(
         'حوزه: ۰۰۶<br>' +
         'بلوک فعال: ' + fieldBlocks[index].label +
-        '<br>شماره: ' + (index + 1) +
-        ' از ' + fieldBlocks.length
+        '<br>ترتیب پیمایش: ' + (index + 1) +
+        ' از ' + fieldBlocks.length +
+        '<br>جهت: جنوب به شمال'
     );
 }
 
@@ -679,36 +698,36 @@ function firstBlock() {
 }
 
 function nextBlock() {
-
     if (!fieldBlocks.length) return;
 
-    var next = activeIndex + 1;
-
-    if (next >= fieldBlocks.length) {
-        next = 0;
+    if (activeIndex < 0) {
+        activateBlock(0);
+        return;
     }
 
-    activateBlock(next);
+    if (activeIndex + 1 >= fieldBlocks.length) {
+        fieldStatus('به آخرین بلوک حوزه رسیده‌اید');
+        return;
+    }
+
+    activateBlock(activeIndex + 1);
 }
 
 function zoomActive() {
-
     if (!activeLayer) {
         fieldStatus('ابتدا یک بلوک انتخاب کنید');
         return;
     }
 
     map.fitBounds(activeLayer.getBounds(), {
-        padding: [35, 35]
+        padding: [35, 35],
+        maxZoom: 20
     });
 }
 
 function resetActive() {
-
     restoreActiveStyle();
-
     activeIndex = -1;
-
     fieldStatus('بلوک فعال لغو شد');
 }
 
@@ -722,20 +741,21 @@ var gpsMarker = null;
 var gpsAccuracyCircle = null;
 
 function toggleGPS() {
-
     var button = document.getElementById('gpsButton');
 
     if (gpsWatchId !== null) {
-
         navigator.geolocation.clearWatch(gpsWatchId);
-
         gpsWatchId = null;
 
         button.innerText = 'شروع GPS زنده';
         button.classList.remove('gps-active');
 
         fieldStatus('ردیابی GPS متوقف شد');
+        return;
+    }
 
+    if (!window.isSecureContext) {
+        fieldStatus('برای GPS باید نقشه از طریق HTTPS باز شود');
         return;
     }
 
@@ -744,18 +764,22 @@ function toggleGPS() {
         return;
     }
 
+    button.innerText = 'توقف GPS زنده';
+    button.classList.add('gps-active');
+
+    fieldStatus('در حال دریافت موقعیت GPS...');
+
+    var firstFix = true;
+
     gpsWatchId = navigator.geolocation.watchPosition(
-
         function(position) {
-
             var lat = position.coords.latitude;
             var lng = position.coords.longitude;
-            var accuracy = position.coords.accuracy;
+            var accuracy = Math.max(1, position.coords.accuracy || 0);
 
             gpsPosition = L.latLng(lat, lng);
 
             if (!gpsMarker) {
-
                 gpsMarker = L.circleMarker(gpsPosition, {
                     radius: 8,
                     color: '#ffffff',
@@ -764,26 +788,31 @@ function toggleGPS() {
                     fillOpacity: 1
                 }).addTo(map);
 
+                gpsMarker.bindPopup('موقعیت فعلی شما');
             } else {
-
                 gpsMarker.setLatLng(gpsPosition);
-
             }
 
             if (!gpsAccuracyCircle) {
-
                 gpsAccuracyCircle = L.circle(gpsPosition, {
                     radius: accuracy,
                     color: '#3388ff',
                     fillColor: '#3388ff',
                     fillOpacity: 0.12
                 }).addTo(map);
-
             } else {
-
                 gpsAccuracyCircle.setLatLng(gpsPosition);
                 gpsAccuracyCircle.setRadius(accuracy);
+            }
 
+            if (firstFix) {
+                map.setView(gpsPosition, Math.max(map.getZoom(), 17));
+                firstFix = false;
+            } else {
+                map.panTo(gpsPosition, {
+                    animate: true,
+                    duration: 0.4
+                });
             }
 
             fieldStatus(
@@ -792,27 +821,30 @@ function toggleGPS() {
                 'عرض جغرافیایی: ' + lat.toFixed(6) +
                 '<br>طول جغرافیایی: ' + lng.toFixed(6)
             );
-
         },
-
         function(error) {
+            var message =
+                error.code === 1 ? 'دسترسی مکان رد شده است' :
+                error.code === 2 ? 'موقعیت فعلاً در دسترس نیست' :
+                'زمان دریافت GPS تمام شد';
 
-            fieldStatus('خطای GPS: ' + error.message);
+            if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId);
+            }
 
+            gpsWatchId = null;
+
+            button.innerText = 'شروع GPS زنده';
+            button.classList.remove('gps-active');
+
+            fieldStatus(message);
         },
-
         {
             enableHighAccuracy: true,
             maximumAge: 0,
-            timeout: 20000
+            timeout: 30000
         }
-
     );
-
-    button.innerText = 'توقف GPS زنده';
-    button.classList.add('gps-active');
-
-    fieldStatus('در حال دریافت موقعیت GPS...');
 }
 
 // ========================================
@@ -822,7 +854,6 @@ function toggleGPS() {
 var routeLayer = null;
 
 function clearRoute() {
-
     if (routeLayer) {
         map.removeLayer(routeLayer);
         routeLayer = null;
@@ -832,7 +863,6 @@ function clearRoute() {
 }
 
 async function routeToBlock(mode) {
-
     if (!gpsPosition) {
         fieldStatus('ابتدا GPS را فعال کنید');
         return;
@@ -843,23 +873,16 @@ async function routeToBlock(mode) {
         return;
     }
 
-    clearRoute();
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+    }
 
     var destination = activeLayer.getBounds().getCenter();
 
-    var service;
-
-    if (mode === 'car') {
-
-        service =
-            'https://routing.openstreetmap.de/routed-car/route/v1/driving/';
-
-    } else {
-
-        service =
-            'https://routing.openstreetmap.de/routed-foot/route/v1/driving/';
-
-    }
+    var service = mode === 'car'
+        ? 'https://routing.openstreetmap.de/routed-car/route/v1/driving/'
+        : 'https://routing.openstreetmap.de/routed-foot/route/v1/driving/';
 
     var url =
         service +
@@ -870,7 +893,6 @@ async function routeToBlock(mode) {
     fieldStatus('در حال محاسبه مسیر...');
 
     try {
-
         var response = await fetch(url);
 
         if (!response.ok) {
@@ -886,13 +908,11 @@ async function routeToBlock(mode) {
         var route = data.routes[0];
 
         routeLayer = L.geoJSON(route.geometry, {
-
             style: {
                 color: mode === 'car' ? '#0066ff' : '#00a651',
                 weight: 5,
                 opacity: 0.85
             }
-
         }).addTo(map);
 
         map.fitBounds(routeLayer.getBounds(), {
@@ -900,21 +920,17 @@ async function routeToBlock(mode) {
         });
 
         fieldStatus(
-            'مسیریابی انجام شد<br>' +
-            'مسافت: ' +
-            (route.distance / 1000).toFixed(2) +
+            (mode === 'car' ? 'مسیر خودرو' : 'مسیر پیاده') +
+            ' انجام شد<br>' +
+            'مسافت: ' + (route.distance / 1000).toFixed(2) +
             ' کیلومتر<br>' +
             'زمان تقریبی: ' +
-            Math.round(route.duration / 60) +
-            ' دقیقه'
+            Math.round(route.duration / 60) + ' دقیقه'
         );
-
     } catch (error) {
-
         fieldStatus(
-            'خطا در مسیریابی: ' + error.message
+            'خطا در مسیریابی؛ اتصال اینترنت یا سرویس مسیر را بررسی کنید'
         );
-
     }
 }
 
@@ -926,38 +942,32 @@ var compassEnabled = false;
 var compassHandler = null;
 
 function toggleCompass() {
-
     if (!window.DeviceOrientationEvent) {
         fieldStatus('این دستگاه از قطب‌نما پشتیبانی نمی‌کند');
         return;
     }
 
     if (compassEnabled) {
-
         if (compassHandler) {
             window.removeEventListener(
                 'deviceorientation',
-                compassHandler
+                compassHandler,
+                true
             );
         }
 
         compassEnabled = false;
-
         fieldStatus('قطب‌نما غیرفعال شد');
-
         return;
     }
 
     function startCompass() {
-
         compassEnabled = true;
 
         compassHandler = function(event) {
-
             var heading = event.webkitCompassHeading;
 
             if (heading === undefined || heading === null) {
-
                 heading = event.alpha;
 
                 if (heading === null || heading === undefined) {
@@ -971,12 +981,12 @@ function toggleCompass() {
                 'قطب‌نما فعال است<br>' +
                 'جهت: ' + Math.round(heading) + ' درجه'
             );
-
         };
 
         window.addEventListener(
             'deviceorientation',
-            compassHandler
+            compassHandler,
+            true
         );
 
         fieldStatus('قطب‌نما فعال شد');
@@ -985,27 +995,19 @@ function toggleCompass() {
     if (
         typeof DeviceOrientationEvent.requestPermission === 'function'
     ) {
-
         DeviceOrientationEvent.requestPermission()
-
             .then(function(permission) {
-
                 if (permission === 'granted') {
                     startCompass();
                 } else {
                     fieldStatus('دسترسی قطب‌نما تأیید نشد');
                 }
-
             })
-
             .catch(function() {
                 fieldStatus('امکان فعال‌سازی قطب‌نما وجود ندارد');
             });
-
     } else {
-
         startCompass();
-
     }
 }
 
@@ -1014,19 +1016,15 @@ function toggleCompass() {
 // ========================================
 
 window.addEventListener('resize', function() {
-
     setTimeout(function() {
         map.invalidateSize();
     }, 200);
-
 });
 
 window.addEventListener('orientationchange', function() {
-
     setTimeout(function() {
         map.invalidateSize();
     }, 500);
-
 });
 
 // ========================================
@@ -1034,15 +1032,10 @@ window.addEventListener('orientationchange', function() {
 // ========================================
 
 window.addEventListener('pagehide', function() {
-
-    if (gpsWatchId !== null) {
-
+    if (gpsWatchId !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(gpsWatchId);
-
         gpsWatchId = null;
-
     }
-
 });
 
 // ========================================
